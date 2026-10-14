@@ -1,0 +1,18 @@
+server:
+  port: 8080
+
+payments:
+  # Which PaymentProvider implementation the core service routes to.
+  provider: jsonplaceholder
+  jsonplaceholder:
+    base-url: https://jsonplaceholder.typicode.com
+    # JSONPlaceholder "user" that stands in for our merchant account.
+    merchant-user-id: 1
+    connect-timeout: 3s
+    read-timeout: 5s
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level %-28logger{0} : %msg%n"
+  level:
+    com.example.paymentadapter: INFO
