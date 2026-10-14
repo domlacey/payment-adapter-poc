@@ -1,10 +1,5 @@
 package com.example.paymentadapter.payment;
 
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -23,16 +18,11 @@ public class PaymentService {
     private final PaymentProvider provider;
     private final ObjectMapper objectMapper;
 
-    public PaymentService(List<PaymentProvider> providers,
+    public PaymentService(PaymentProviderRegistry providers,
                           @Value("${payments.provider}") String providerName,
                           ObjectMapper objectMapper) {
-        Map<String, PaymentProvider> byName = providers.stream()
-                .collect(Collectors.toMap(PaymentProvider::name, Function.identity()));
-        this.provider = byName.get(providerName);
-        if (this.provider == null) {
-            throw new IllegalStateException("Unknown payments.provider '" + providerName
-                    + "'. Available: " + byName.keySet());
-        }
+        this.provider = providers.find(providerName).orElseThrow(() -> new IllegalStateException(
+                "Unknown payments.provider '" + providerName + "'. Available: " + providers.names()));
         this.objectMapper = objectMapper;
     }
 

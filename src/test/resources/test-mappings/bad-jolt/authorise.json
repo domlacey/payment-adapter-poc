@@ -1,0 +1,2 @@
+{ "flow": "authorise", "steps": [ { "name": "call", "method": "GET", "path": "/thing" } ],
+  "response": [ { "operation": "not-a-jolt-operation", "spec": {} } ] }

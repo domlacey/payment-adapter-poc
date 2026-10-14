@@ -1,4 +1,4 @@
-package com.example.paymentadapter.provider.jsonplaceholder;
+package com.example.paymentadapter.provider.config;
 
 import java.io.IOException;
 import java.net.URI;
@@ -6,60 +6,55 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
+import java.time.Duration;
 
 import com.example.paymentadapter.payment.ProviderException;
 import com.example.paymentadapter.payment.ProviderException.Reason;
-import com.example.paymentadapter.provider.jsonplaceholder.dto.CreatePostRequest;
-import com.example.paymentadapter.provider.jsonplaceholder.dto.PostResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 /**
- * Thin HTTP client for JSONPlaceholder built on the JDK {@link HttpClient}. Responsible only for
- * transport concerns: serialisation, timeouts, status codes, logging and JSON parsing.
+ * Provider-agnostic JSON-over-HTTP client (JDK {@link HttpClient}). Bodies are plain maps/lists, so it
+ * never knows any provider field. Handles timeouts, non-2xx statuses, unreadable JSON and logging.
  */
-@Component
-public class JsonPlaceholderHttpClient {
+public class ProviderHttpClient {
 
-    private static final Logger log = LoggerFactory.getLogger(JsonPlaceholderHttpClient.class);
+    private static final Logger log = LoggerFactory.getLogger(ProviderHttpClient.class);
 
-    public record Result(int statusCode, PostResponse body) {
+    public record Result(int statusCode, Object body) {
     }
 
-    private final JsonPlaceholderProperties properties;
+    private final String providerName;
+    private final String baseUrl;
+    private final Duration readTimeout;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
-    public JsonPlaceholderHttpClient(JsonPlaceholderProperties properties, ObjectMapper objectMapper) {
-        this.properties = properties;
+    public ProviderHttpClient(String providerName, String baseUrl, Duration connectTimeout, Duration readTimeout,
+                              ObjectMapper objectMapper) {
+        this.providerName = providerName;
+        this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        this.readTimeout = readTimeout;
         this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newBuilder().connectTimeout(properties.connectTimeout()).build();
+        this.httpClient = HttpClient.newBuilder().connectTimeout(connectTimeout).build();
     }
 
-    public Result getPost(int id) {
-        return send("GET", "/posts/" + id, null);
-    }
-
-    public Result createPost(CreatePostRequest request) {
-        return send("POST", "/posts", toJson(request));
-    }
-
-    private Result send(String method, String path, String requestBody) {
-        URI uri = URI.create(stripTrailingSlash(properties.baseUrl()) + path);
+    public Result exchange(String method, String path, Object requestBody) {
+        URI uri = URI.create(baseUrl + path);
+        String json = requestBody == null ? null : toJson(requestBody);
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
-                .timeout(properties.readTimeout())
+                .timeout(readTimeout)
                 .header("Accept", "application/json");
-        if (requestBody == null) {
+        if (json == null) {
             builder.method(method, HttpRequest.BodyPublishers.noBody());
         } else {
             builder.header("Content-Type", "application/json; charset=UTF-8")
-                    .method(method, HttpRequest.BodyPublishers.ofString(requestBody));
+                    .method(method, HttpRequest.BodyPublishers.ofString(json));
         }
 
-        log.info(">>> Outgoing HTTP {} {} body={}", method, uri, requestBody == null ? "<none>" : requestBody);
+        log.info(">>> Outgoing HTTP {} {} body={}", method, uri, json == null ? "<none>" : json);
         long start = System.nanoTime();
         HttpResponse<String> response;
         try {
@@ -67,14 +62,14 @@ public class JsonPlaceholderHttpClient {
         } catch (HttpTimeoutException e) {
             log.warn("<<< HTTP {} {} timed out: {}", method, uri, e.getMessage());
             throw new ProviderException(Reason.TIMEOUT,
-                    "JSONPlaceholder did not respond to " + method + " " + path + " in time", null, e);
+                    providerName + " did not respond to " + method + " " + path + " in time", null, e);
         } catch (IOException e) {
             log.warn("<<< HTTP {} {} failed: {}", method, uri, e.toString());
             throw new ProviderException(Reason.UNAVAILABLE,
-                    "JSONPlaceholder unreachable for " + method + " " + path + ": " + e, null, e);
+                    providerName + " unreachable for " + method + " " + path + ": " + e, null, e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ProviderException(Reason.UNAVAILABLE, "Interrupted while calling JSONPlaceholder", null, e);
+            throw new ProviderException(Reason.UNAVAILABLE, "Interrupted while calling " + providerName, null, e);
         }
         long millis = (System.nanoTime() - start) / 1_000_000;
         log.info("<<< Incoming HTTP {} from {} {} ({} ms) body={}",
@@ -83,21 +78,21 @@ public class JsonPlaceholderHttpClient {
         int status = response.statusCode();
         if (status < 200 || status > 299) {
             throw new ProviderException(Reason.HTTP_ERROR,
-                    "JSONPlaceholder returned HTTP " + status + " for " + method + " " + path, status, null);
+                    providerName + " returned HTTP " + status + " for " + method + " " + path, status, null);
         }
         return new Result(status, parse(response.body(), method, path, status));
     }
 
-    private PostResponse parse(String body, String method, String path, int status) {
+    private Object parse(String body, String method, String path, int status) {
         if (body == null || body.isBlank()) {
             throw new ProviderException(Reason.MALFORMED_RESPONSE,
-                    "JSONPlaceholder returned an empty body for " + method + " " + path, status, null);
+                    providerName + " returned an empty body for " + method + " " + path, status, null);
         }
         try {
-            return objectMapper.readValue(body, PostResponse.class);
+            return objectMapper.readValue(body, Object.class);
         } catch (JsonProcessingException e) {
             throw new ProviderException(Reason.MALFORMED_RESPONSE,
-                    "JSONPlaceholder returned unparseable JSON for " + method + " " + path, status, e);
+                    providerName + " returned unparseable JSON for " + method + " " + path, status, e);
         }
     }
 
@@ -107,9 +102,5 @@ public class JsonPlaceholderHttpClient {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Could not serialise provider request", e);
         }
-    }
-
-    private static String stripTrailingSlash(String url) {
-        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 }

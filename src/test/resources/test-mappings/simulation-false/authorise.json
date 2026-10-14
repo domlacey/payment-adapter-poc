@@ -1,0 +1,3 @@
+{ "flow": "authorise", "steps": [ { "name": "call", "method": "GET", "path": "/thing" } ],
+  "response": [ { "operation": "shift", "spec": { "request": { "paymentId": "paymentId" }, "steps": { "call": { "response": { "ref": "providerReference" } } } } },
+                { "operation": "default", "spec": { "status": "SIMULATED_ACCEPTED", "message": "m", "simulation": false, "provider": "someone-else" } } ] }

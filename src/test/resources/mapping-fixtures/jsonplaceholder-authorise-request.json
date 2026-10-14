@@ -1,0 +1,16 @@
+{
+  "description": "Canonical request -> JSONPlaceholder POST /posts body",
+  "mappingLocation": "classpath:mappings/jsonplaceholder/",
+  "flow": "authorise",
+  "target": "createAuthorisation",
+  "context": {
+    "request": { "paymentId": "PAY-1001", "amount": 1250, "currency": "GBP" },
+    "variables": { "merchantUserId": 1 },
+    "steps": {}
+  },
+  "expected": {
+    "title": "SIMULATED payment authorisation PAY-1001",
+    "body": "paymentId=PAY-1001;amountMinorUnits=1250;currency=GBP",
+    "userId": 1
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "description": "JSONPlaceholder responses -> canonical response",
+  "mappingLocation": "classpath:mappings/jsonplaceholder/",
+  "flow": "authorise",
+  "target": "response",
+  "context": {
+    "request": { "paymentId": "PAY-1001", "amount": 1250, "currency": "GBP" },
+    "variables": { "merchantUserId": 1 },
+    "steps": {
+      "merchantLookup": { "request": null, "status": 200, "response": { "userId": 1, "id": 1, "title": "t", "body": "b" } },
+      "createAuthorisation": {
+        "request": { "title": "SIMULATED payment authorisation PAY-1001", "body": "paymentId=PAY-1001;amountMinorUnits=1250;currency=GBP", "userId": 1 },
+        "status": 201,
+        "response": { "title": "SIMULATED payment authorisation PAY-1001", "body": "paymentId=PAY-1001;amountMinorUnits=1250;currency=GBP", "userId": 1, "id": 101 }
+      }
+    }
+  },
+  "expected": {
+    "paymentId": "PAY-1001",
+    "status": "SIMULATED_ACCEPTED",
+    "providerReference": "JSONPLACEHOLDER-POST-101",
+    "message": "SIMULATION ONLY - JSONPlaceholder returned HTTP 201 and assigned post id 101. No payment was authorised: JSONPlaceholder is a fake REST API, not a payment processor, and it does not persist POST requests."
+  }
+}

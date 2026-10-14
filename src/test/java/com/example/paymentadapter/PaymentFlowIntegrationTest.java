@@ -6,7 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.io.IOException;
 
-import com.example.paymentadapter.provider.jsonplaceholder.FakeProviderServer;
+import com.example.paymentadapter.provider.config.FakeProviderServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,7 +37,7 @@ class PaymentFlowIntegrationTest {
 
     @DynamicPropertySource
     static void providerUrl(DynamicPropertyRegistry registry) {
-        registry.add("payments.jsonplaceholder.base-url", PROVIDER::baseUrl);
+        registry.add("payments.providers.jsonplaceholder.base-url", PROVIDER::baseUrl);
     }
 
     @AfterAll

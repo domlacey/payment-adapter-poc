@@ -1,13 +1,17 @@
 package com.example.paymentadapter.payment;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
 /**
- * Internal, provider-agnostic payment response returned to callers of the payments API.
+ * Internal (canonical), provider-agnostic payment response. The constraints are enforced on every
+ * response produced by a provider mapping.
  */
 public record PaymentAuthorisationResponse(
-        String paymentId,
-        String providerReference,
-        PaymentStatus status,
-        String message,
+        @NotBlank String paymentId,
+        @NotBlank String providerReference,
+        @NotNull PaymentStatus status,
+        @NotBlank String message,
         String provider,
         boolean simulation) {
 }

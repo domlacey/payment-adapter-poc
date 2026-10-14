@@ -48,12 +48,12 @@ class PaymentServiceTest {
 
     @Test
     void failsFastOnUnknownProvider() {
-        assertThatThrownBy(() -> new PaymentService(List.of(stub(r -> null)), "wechatpay", new ObjectMapper()))
+        assertThatThrownBy(() -> new PaymentService(new PaymentProviderRegistry(List.of(stub(r -> null))), "wechatpay", new ObjectMapper()))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("wechatpay");
     }
 
     private static PaymentService serviceWith(PaymentProvider provider) {
-        return new PaymentService(List.of(provider), "stub", new ObjectMapper());
+        return new PaymentService(new PaymentProviderRegistry(List.of(provider)), "stub", new ObjectMapper());
     }
 
     private static PaymentProvider stub(java.util.function.Function<PaymentAuthorisationRequest, PaymentAuthorisationResponse> fn) {

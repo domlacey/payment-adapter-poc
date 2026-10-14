@@ -1,0 +1,68 @@
+{
+  "flow": "authorise",
+  "description": "SIMULATION. Maps a canonical payment authorisation onto JSONPlaceholder (a fake REST API). Nothing is authorised.",
+  "steps": [
+    {
+      "name": "merchantLookup",
+      "description": "Stand-in for a merchant account lookup: GET the post whose id is our merchant user id.",
+      "method": "GET",
+      "path": "/posts/{variables.merchantUserId}",
+      "assertions": [
+        { "rule": "exists", "path": "steps.merchantLookup.response.id",
+          "message": "Merchant lookup response has no id" },
+        { "rule": "equals", "path": "steps.merchantLookup.response.userId", "otherPath": "variables.merchantUserId",
+          "message": "Merchant lookup returned a different userId" }
+      ]
+    },
+    {
+      "name": "createAuthorisation",
+      "description": "Stand-in for 'create authorisation': the canonical request becomes a JSONPlaceholder post.",
+      "method": "POST",
+      "path": "/posts",
+      "request": [
+        {
+          "operation": "shift",
+          "spec": {
+            "request": { "paymentId": "paymentId", "amount": "amount", "currency": "currency" },
+            "variables": { "merchantUserId": "userId" }
+          }
+        },
+        {
+          "operation": "modify-overwrite-beta",
+          "spec": {
+            "title": "=concat('SIMULATED payment authorisation ',@(1,paymentId))",
+            "body": "=concat('paymentId=',@(1,paymentId),';amountMinorUnits=',@(1,amount),';currency=',@(1,currency))",
+            "userId": "=toInteger"
+          }
+        },
+        { "operation": "remove", "spec": { "paymentId": "", "amount": "", "currency": "" } }
+      ],
+      "assertions": [
+        { "rule": "exists", "path": "steps.createAuthorisation.response.id",
+          "message": "Provider response is missing 'id'" },
+        { "rule": "equals", "path": "steps.createAuthorisation.response.title", "otherPath": "steps.createAuthorisation.request.title",
+          "message": "Provider response did not echo the submitted title" },
+        { "rule": "equals", "path": "steps.createAuthorisation.response.body", "otherPath": "steps.createAuthorisation.request.body",
+          "message": "Provider response did not echo the submitted body" }
+      ]
+    }
+  ],
+  "response": [
+    {
+      "operation": "shift",
+      "spec": {
+        "request": { "paymentId": "paymentId" },
+        "steps": { "createAuthorisation": { "status": "httpStatus", "response": { "id": "postId" } } }
+      }
+    },
+    { "operation": "default", "spec": { "status": "SIMULATED_ACCEPTED" } },
+    {
+      "operation": "modify-overwrite-beta",
+      "spec": {
+        "providerReference": "=concat('JSONPLACEHOLDER-POST-',@(1,postId))",
+        "message": "=concat('SIMULATION ONLY - JSONPlaceholder returned HTTP ',@(1,httpStatus),' and assigned post id ',@(1,postId),'. No payment was authorised: JSONPlaceholder is a fake REST API, not a payment processor, and it does not persist POST requests.')"
+      }
+    },
+    { "operation": "remove", "spec": { "httpStatus": "", "postId": "" } }
+  ]
+}

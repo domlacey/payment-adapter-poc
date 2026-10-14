@@ -1,4 +1,4 @@
-package com.example.paymentadapter.provider.jsonplaceholder;
+package com.example.paymentadapter.provider.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -6,19 +6,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.time.Duration;
+import java.util.Map;
 
 import com.example.paymentadapter.payment.ProviderException;
 import com.example.paymentadapter.payment.ProviderException.Reason;
-import com.example.paymentadapter.provider.jsonplaceholder.dto.CreatePostRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class JsonPlaceholderHttpClientTest {
+class ProviderHttpClientTest {
 
     private FakeProviderServer server;
-    private JsonPlaceholderHttpClient client;
+    private ProviderHttpClient client;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -32,33 +32,33 @@ class JsonPlaceholderHttpClientTest {
     }
 
     @Test
-    void sendsJsonBodyAndParsesCreatedPost() {
-        server.stub("POST", "/posts", 201,
-                "{\"title\":\"t\",\"body\":\"b\",\"userId\":1,\"id\":101}");
+    void sendsJsonBodyAndParsesResponse() {
+        server.stub("POST", "/posts", 201, "{\"a\":\"x\",\"id\":101}");
 
-        JsonPlaceholderHttpClient.Result result = client.createPost(new CreatePostRequest("t", "b", 1));
+        ProviderHttpClient.Result result = client.exchange("POST", "/posts", Map.of("a", "x"));
 
         assertThat(result.statusCode()).isEqualTo(201);
-        assertThat(result.body().id()).isEqualTo(101);
+        assertThat(result.body()).isEqualTo(Map.of("a", "x", "id", 101));
         assertThat(server.requests()).singleElement().satisfies(r -> {
             assertThat(r.method()).isEqualTo("POST");
-            assertThat(r.path()).isEqualTo("/posts");
-            assertThat(r.body()).isEqualTo("{\"title\":\"t\",\"body\":\"b\",\"userId\":1}");
+            assertThat(r.body()).isEqualTo("{\"a\":\"x\"}");
         });
     }
 
     @Test
-    void ignoresUnknownProviderFields() {
-        server.stub("GET", "/posts/1", 200, "{\"id\":1,\"userId\":1,\"title\":\"t\",\"body\":\"b\",\"extra\":true}");
+    void getSendsNoBody() {
+        server.stub("GET", "/posts/1", 200, "{\"id\":1}");
 
-        assertThat(client.getPost(1).body().userId()).isEqualTo(1);
+        client.exchange("GET", "/posts/1", null);
+
+        assertThat(server.requests().get(0).body()).isEmpty();
     }
 
     @Test
     void non2xxBecomesHttpError() {
         server.stub("POST", "/posts", 500, "{\"error\":\"boom\"}");
 
-        assertThatThrownBy(() -> client.createPost(new CreatePostRequest("t", "b", 1)))
+        assertThatThrownBy(() -> client.exchange("POST", "/posts", Map.of()))
                 .isInstanceOfSatisfying(ProviderException.class, e -> {
                     assertThat(e.reason()).isEqualTo(Reason.HTTP_ERROR);
                     assertThat(e.httpStatus()).isEqualTo(500);
@@ -66,27 +66,10 @@ class JsonPlaceholderHttpClientTest {
     }
 
     @Test
-    void notFoundBecomesHttpError() {
-        server.stub("GET", "/posts/1", 404, "{}");
-
-        assertThatThrownBy(() -> client.getPost(1))
-                .isInstanceOfSatisfying(ProviderException.class, e -> assertThat(e.httpStatus()).isEqualTo(404));
-    }
-
-    @Test
     void invalidJsonBecomesMalformedResponse() {
         server.stub("GET", "/posts/1", 200, "<html>not json</html>");
 
-        assertThatThrownBy(() -> client.getPost(1))
-                .isInstanceOfSatisfying(ProviderException.class,
-                        e -> assertThat(e.reason()).isEqualTo(Reason.MALFORMED_RESPONSE));
-    }
-
-    @Test
-    void wrongJsonShapeBecomesMalformedResponse() {
-        server.stub("GET", "/posts/1", 200, "[1,2,3]");
-
-        assertThatThrownBy(() -> client.getPost(1))
+        assertThatThrownBy(() -> client.exchange("GET", "/posts/1", null))
                 .isInstanceOfSatisfying(ProviderException.class,
                         e -> assertThat(e.reason()).isEqualTo(Reason.MALFORMED_RESPONSE));
     }
@@ -95,7 +78,7 @@ class JsonPlaceholderHttpClientTest {
     void emptyBodyBecomesMalformedResponse() {
         server.stub("GET", "/posts/1", 200, "");
 
-        assertThatThrownBy(() -> client.getPost(1))
+        assertThatThrownBy(() -> client.exchange("GET", "/posts/1", null))
                 .isInstanceOfSatisfying(ProviderException.class,
                         e -> assertThat(e.reason()).isEqualTo(Reason.MALFORMED_RESPONSE));
     }
@@ -104,7 +87,7 @@ class JsonPlaceholderHttpClientTest {
     void slowResponseBecomesTimeout() {
         server.stub("GET", "/posts/1", 200, "{\"id\":1}", 2_000);
 
-        assertThatThrownBy(() -> client.getPost(1))
+        assertThatThrownBy(() -> client.exchange("GET", "/posts/1", null))
                 .isInstanceOfSatisfying(ProviderException.class,
                         e -> assertThat(e.reason()).isEqualTo(Reason.TIMEOUT));
     }
@@ -115,16 +98,14 @@ class JsonPlaceholderHttpClientTest {
         try (ServerSocket socket = new ServerSocket(0)) {
             closedPort = socket.getLocalPort();
         }
-        JsonPlaceholderHttpClient unreachable = clientFor("http://127.0.0.1:" + closedPort);
 
-        assertThatThrownBy(() -> unreachable.getPost(1))
+        assertThatThrownBy(() -> clientFor("http://127.0.0.1:" + closedPort).exchange("GET", "/posts/1", null))
                 .isInstanceOfSatisfying(ProviderException.class,
                         e -> assertThat(e.reason()).isEqualTo(Reason.UNAVAILABLE));
     }
 
-    private static JsonPlaceholderHttpClient clientFor(String baseUrl) {
-        JsonPlaceholderProperties props = new JsonPlaceholderProperties(
-                baseUrl, 1, Duration.ofMillis(500), Duration.ofMillis(300));
-        return new JsonPlaceholderHttpClient(props, new ObjectMapper());
+    private static ProviderHttpClient clientFor(String baseUrl) {
+        return new ProviderHttpClient("test-provider", baseUrl, Duration.ofMillis(500), Duration.ofMillis(300),
+                new ObjectMapper());
     }
 }

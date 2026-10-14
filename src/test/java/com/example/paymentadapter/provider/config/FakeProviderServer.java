@@ -1,4 +1,4 @@
-package com.example.paymentadapter.provider.jsonplaceholder;
+package com.example.paymentadapter.provider.config;
 
 import java.io.IOException;
 import java.io.OutputStream;

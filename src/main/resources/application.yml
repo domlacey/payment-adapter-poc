@@ -2,14 +2,21 @@ server:
   port: 8080
 
 payments:
-  # Which PaymentProvider implementation the core service routes to.
+  # Which provider the core service routes to (a key under payments.providers).
   provider: jsonplaceholder
-  jsonplaceholder:
-    base-url: https://jsonplaceholder.typicode.com
-    # JSONPlaceholder "user" that stands in for our merchant account.
-    merchant-user-id: 1
-    connect-timeout: 3s
-    read-timeout: 5s
+  providers:
+    jsonplaceholder:
+      base-url: https://jsonplaceholder.typicode.com
+      connect-timeout: 3s
+      read-timeout: 5s
+      # Forces "simulation": true on every response from this provider, whatever the mapping says.
+      simulation: true
+      # Folder containing one JSON flow file per flow (authorise.json, ...).
+      # Use file:/some/dir/ to edit mappings without rebuilding the jar.
+      mapping-location: classpath:mappings/jsonplaceholder/
+      # Values exposed to mappings as "variables.<name>".
+      variables:
+        merchantUserId: 1
 
 logging:
   pattern:
