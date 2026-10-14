@@ -12,7 +12,8 @@ call**, and maps the actual provider response back into a consistent internal fo
 ## Run it
 
 Prerequisites: **JDK 21** and internet access to `jsonplaceholder.typicode.com`. Maven is optional
-(the Maven Wrapper `./mvnw` is included and downloads Maven 3.9.9 on first use).
+(the Maven Wrapper `./mvnw` is included and downloads Maven 3.9.9 from Maven Central on first use;
+if Central is blocked on your network, use an installed `mvn` 3.9+ instead: `mvn test`, `mvn spring-boot:run`).
 
 ```bash
 ./mvnw test             # 29 tests, all offline (a local fake server stands in for JSONPlaceholder)
